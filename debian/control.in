@@ -1,0 +1,26 @@
+Source: php-tesseract
+Section: php
+Priority: optional
+Maintainer: Operative IT <oss@operativeit.com>
+Build-Depends: debhelper-compat (= 13),
+  dh-php (>= 4~),
+  xml2,
+  php-all-dev,
+  php-common,
+  libtesseract-dev,
+  libleptonica-dev,
+  pkg-config,
+  tesseract-ocr-eng
+Standards-Version: 4.6.2
+Rules-Requires-Root: no
+Homepage: https://github.com/operativeit/php-tesseract
+X-PHP-Versions: 8.4 8.5
+X-PHP-Default-Version: 8.5
+
+Package: php-tesseract
+Architecture: any
+Depends: ${php:Depends}, ${shlibs:Depends}, ${misc:Depends}, tesseract-ocr, tesseract-ocr-eng
+Description: Tesseract OCR extension for PHP
+  A high-performance C++ PHP wrapper for libtesseract.
+  This extension allows PHP applications to use the Tesseract OCR engine
+  to extract text from images.

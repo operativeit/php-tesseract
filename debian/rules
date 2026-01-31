@@ -1,0 +1,27 @@
+#!/usr/bin/make -f
+
+include /usr/share/dh-php/pkg-pecl.mk
+
+PHP_VERSIONS := $(shell sed -n 's/^X-PHP-Versions: //p' debian/control.in)
+SRC := tesseract-1.0.0
+export MAKEFLAGS := -j1
+export DEB_BUILD_OPTIONS = parallel=1
+
+override_dh_clean:
+	/usr/share/dh-php/gen-control $(PHP_VERSIONS)
+	dh_clean
+	rm -rf build-*
+
+override_dh_auto_configure:
+	set -e; \
+	for v in $(PHP_VERSIONS); do \
+	  rm -rf build-$$v; \
+	  cp -a $(SRC) build-$$v; \
+	  rm -rf build-$$v/.libs build-$$v/modules build-$$v/autom4te.cache; \
+	  rm -f build-$$v/*.la build-$$v/*.lo build-$$v/*.o; \
+	  rm -f build-$$v/Makefile build-$$v/Makefile.in build-$$v/config.h build-$$v/config.log build-$$v/config.status build-$$v/config.nice; \
+	  cd build-$$v; \
+	    PHP_CONFIG=/usr/bin/php-config$$v /usr/bin/phpize$$v; \
+	    ./configure --with-php-config=/usr/bin/php-config$$v; \
+	  cd ..; \
+	done

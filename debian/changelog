@@ -1,0 +1,5 @@
+php-tesseract (1.0.0-1) unstable; urgency=medium
+
+  * Initial release as a Debian package.
+
+ -- Operative IT <oss@operativeit.com>  Fri, 30 Jan 2026 18:52:00 +0100
