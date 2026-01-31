@@ -72,6 +72,7 @@ sudo apt update && sudo apt install -y build-essential pkg-config git php-dev li
 #### 2. Build & Install
 
 ```bash
+cd tesseract-1.0.0
 phpize
 ./configure
 make
@@ -94,7 +95,7 @@ For professional deployment, you can generate a standard package:
 
 ```bash
 # Install packaging tools
-sudo apt install build-essential debhelper devscripts dh-php php-dev pkg-config
+sudo apt install build-essential debhelper devscripts dh-php php-all-dev pkg-config
 
 # Build the package
 dpkg-buildpackage -us -uc -b
