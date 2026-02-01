@@ -58,6 +58,7 @@ struct Tesseract : tesseract::TessBaseAPI {
       return;
     }
     if (m_image) {
+      Clear();
       pixDestroy(&m_image);
     }
     m_image = image;
@@ -97,6 +98,7 @@ struct Tesseract : tesseract::TessBaseAPI {
   Pix *m_image{nullptr};
 
   virtual ~Tesseract() {
+    End();
     if (m_image) {
       pixDestroy(&m_image);
     }
