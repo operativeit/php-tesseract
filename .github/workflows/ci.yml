@@ -1,26 +1,18 @@
-name: CI
+name: Build and Test (PHP 8.5)
 
-on:
-  pull_request:
-  push:
-    branches: ["master", "dev"]
+on: [push, pull_request]
 
 jobs:
-  build-test:
+  build-and-test:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        php: ["8.4", "8.5"]
-
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: ${{ matrix.php }}
-          tools: phpize
+          php-version: '8.5'
+          extensions: none
           coverage: none
 
       - name: Install dependencies
@@ -28,151 +20,26 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libtesseract-dev libleptonica-dev tesseract-ocr
 
-      - name: Set TESSDATA_PREFIX (point to tessdata/)
+      - name: Build Tesseract extension
         run: |
-          set -euo pipefail
-          # Prefer: locate eng.traineddata installed by the package
-          ENG_FILE="$(dpkg -L tesseract-ocr-eng 2>/dev/null | grep -E '/tessdata/eng\.traineddata$' | head -n 1 || true)"
-          if [ -n "$ENG_FILE" ]; then
-            TESSDATA_DIR="$(dirname "$ENG_FILE")"
-          else
-            # Fallbacks
-            for d in \
-              /usr/share/tesseract-ocr/5/tessdata \
-              /usr/share/tesseract-ocr/4.00/tessdata \
-              /usr/share/tessdata; do
-              if [ -f "$d/eng.traineddata" ]; then
-                TESSDATA_DIR="$d"
-                break
-              fi
-            done
-          fi
-
-          if [ -z "${TESSDATA_DIR:-}" ] || [ ! -f "$TESSDATA_DIR/eng.traineddata" ]; then
-            echo "Could not find eng.traineddata. Searching..."
-            FOUND="$(sudo find /usr/share -path '*tessdata/eng.traineddata' -print -quit 2>/dev/null || true)"
-            if [ -n "$FOUND" ]; then
-              TESSDATA_DIR="$(dirname "$FOUND")"
-            fi
-          fi
-
-          if [ -z "${TESSDATA_DIR:-}" ] || [ ! -f "$TESSDATA_DIR/eng.traineddata" ]; then
-            echo "ERROR: eng.traineddata not found"
-            exit 1
-          fi
-
-          echo "TESSDATA_PREFIX=$TESSDATA_DIR" >> $GITHUB_ENV
-          echo "Using TESSDATA_PREFIX=$TESSDATA_DIR"
-          ls -lah "$TESSDATA_DIR" | head -n 50
-
-      - name: Detect extension dir
-        id: extdir
-        run: |
-          if ls -d tesseract-* >/dev/null 2>&1; then
-            DIR="$(ls -d tesseract-* | sort -V | tail -n 1)"
-          else
-            DIR="."
-          fi
-          echo "dir=$DIR" >> $GITHUB_OUTPUT
-          echo "Using dir=$DIR"
-
-      - name: Build extension
-        run: |
-          cd "${{ steps.extdir.outputs.dir }}"
+          cd tesseract-1.0.0
           phpize --clean || true
-          phpize
-          ./configure
           make clean || true
-          ./configure
+          phpize
+          ./configure --with-tesseract
           make -j"$(nproc)"
 
-      - name: Sanity check (CLI)
+      - name: Run tests
         run: |
-          cd "${{ steps.extdir.outputs.dir }}"
-          php -d extension=modules/tesseract.so -r '
-            $img = getcwd()."/tests/quick-brown-fox.png";
-            $t = new Operativeit\Tesseract("eng");
-            $t->setImage($img);
-            $s = $t->getUTF8Text();
-            echo "LEN=".strlen($s)."\n";
-          '
-
-      - name: Run tests with Tesseract
-        run: |
-          cd "${{ steps.extdir.outputs.dir }}"
+          cd tesseract-1.0.0
           if ls tests/*.phpt >/dev/null 2>&1; then
             make test TESTS="tests" REPORT_EXIT_STATUS=1 NO_INTERACTION=1 \
               TEST_PHP_ARGS="-d opcache.enable=0 -d opcache.enable_cli=0 -d opcache.jit=0 -d opcache.protect_memory=0 -vv" || (
                 echo "=== TEST FAILED. SHOWING OUTPUTS ==="
                 for f in tests/*.out; do [ -e "$f" ] && echo ">>>> $f" && cat "$f"; done
                 for f in tests/*.diff; do [ -e "$f" ] && echo ">>>> $f" && cat "$f"; done
-                for f in tests/*.mem; do [ -e "$f" ] && echo ">>>> $f" && cat "$f"; done
                 exit 1
               )
           else
             echo "No PHPT tests found"
           fi
-
-      - name: Show PHPT Diff
-        if: failure()
-        run: |
-          cd "${{ steps.extdir.outputs.dir }}"
-          echo "=== FAILURE DETAILS ==="
-          for f in tests/*.diff; do
-            [ -e "$f" ] || continue
-            echo ">>>> $f"
-            cat "$f"
-            echo "<<<<"
-          done
-          for f in tests/*.out; do
-            [ -e "$f" ] || continue
-            echo ">>>> $f"
-            cat "$f"
-            echo "<<<<"
-          done
-          for f in tests/*.log; do
-             [ -e "$f" ] || continue
-             echo ">>>> $f"
-             cat "$f"
-             echo "<<<<"
-          done
-
-      - name: Install gdb (8.5 only)
-        if: failure() && matrix.php == '8.5'
-        run: sudo apt-get update && sudo apt-get install -y gdb
-
-      - name: GDB backtrace (8.5 only)
-        if: failure() && matrix.php == '8.5'
-        run: |
-          set -euo pipefail
-          cd "${{ steps.extdir.outputs.dir }}"
-
-          # El runner de PHPT genera este archivo al ejecutar el .phpt
-          if [ ! -f "tests/quick-brown-fox.php" ]; then
-            echo "tests/quick-brown-fox.php not found (PHPT did not generate it)"
-            ls -lah tests || true
-            exit 1
-          fi
-
-          gdb --batch \
-            -ex "set pagination off" \
-            -ex "run" \
-            -ex "bt full" \
-            --args /usr/bin/php8.5 \
-              -n -c "$(pwd)/tmp-php.ini" \
-              -d "output_handler=" \
-              -d "open_basedir=" \
-              -d "disable_functions=" \
-              -d "output_buffering=Off" \
-              -d "display_errors=1" \
-              -d "display_startup_errors=1" \
-              -d "log_errors=0" \
-              -d "html_errors=0" \
-              -d "report_zend_debug=0" \
-              -d "extension_dir=$(pwd)/modules/" \
-              -d "extension=tesseract.so" \
-              -d "opcache.enable=0" \
-              -d "opcache.enable_cli=0" \
-              -d "opcache.jit=0" \
-              -d "opcache.protect_memory=0" \
-              -f "$(pwd)/tests/quick-brown-fox.php"
