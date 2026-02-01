@@ -98,11 +98,13 @@ struct Tesseract : tesseract::TessBaseAPI {
   Pix *m_image{nullptr};
 
   virtual ~Tesseract() {
-    Clear();
-    End();
+    fprintf(stderr, "DEBUG: ~Tesseract (Empty) start\n");
+    // Clear();
+    // End();
     // if (m_image) {
     //   pixDestroy(&m_image);
     // }
+    fprintf(stderr, "DEBUG: ~Tesseract (Empty) done\n");
   }
 
   static zend_object_handlers handlers;
