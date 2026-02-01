@@ -151,6 +151,14 @@ static PHP_MINIT_FUNCTION(tesseract) {
     tesseract_methods
   );
 
+  // Override destructor to fix CI Segfaults (Hybrid: End() then leak)
+  Tesseract::handlers.free_obj = [](zend_object *obj) {
+    auto t = p3::toObject<Tesseract>(obj);
+    if (t) t->End(); // Manually shutdown engine to prevent ObjectCache leaks
+    zend_object_std_dtor(obj); 
+    // Skip ~Tesseract() to prevent base class crash
+  };
+
   // Override destructor to fix 8.4 Segfault (Hybrid: End() then leak)
   Tesseract::handlers.free_obj = [](zend_object *obj) {
     auto t = p3::toObject<Tesseract>(obj);

@@ -23,12 +23,10 @@ jobs:
           tools: phpize
           coverage: none
 
-      - name: Install system deps
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            autoconf automake libtool make gcc g++ pkg-config \
-            libtesseract-dev libleptonica-dev tesseract-ocr-eng valgrind
+          sudo apt-get install -y libtesseract-dev libleptonica-dev tesseract-ocr
 
       - name: Set TESSDATA_PREFIX (point to tessdata/)
         run: |
@@ -138,17 +136,6 @@ jobs:
              cat "$f"
              echo "<<<<"
           done
-
-      - name: Show Valgrind artifacts
-        if: always()
-        run: |
-          cd "${{ steps.extdir.outputs.dir }}"
-          if compgen -G "tests/*.mem" > /dev/null; then
-            echo "=== VALGRIND REPOSTS ==="
-            for f in tests/*.mem; do echo ">>>> $f" && cat "$f"; done
-          else
-            echo "No Valgrind logs found"
-          fi
 
       - name: Install gdb (8.5 only)
         if: failure() && matrix.php == '8.5'
