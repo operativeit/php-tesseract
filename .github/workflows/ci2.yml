@@ -1,17 +1,22 @@
-name: Build and Test (PHP 8.5)
+name: Build and Test (Matrix 8.4/8.5)
 
 on: [push, pull_request]
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        php: ['8.4', '8.5']
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.5'
+          php-version: ${{ matrix.php }}
           extensions: none
           coverage: none
 
