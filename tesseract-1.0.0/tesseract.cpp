@@ -158,7 +158,6 @@ static PHP_MINIT_FUNCTION(tesseract) {
     zend_object_std_dtor(obj); 
     // Skip ~Tesseract() to prevent base class crash
   };
-  };
 
   zend_declare_class_constant_string(Tesseract::class_entry,
     "VERSION", strlen("VERSION"), Tesseract::Version());
