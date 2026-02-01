@@ -6,7 +6,7 @@ on:
     branches: ["master", "dev"]
 
 jobs:
-  build:
+  build-test:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -21,17 +21,27 @@ jobs:
         with:
           php-version: ${{ matrix.php }}
           tools: phpize
+          coverage: none
+        env:
+          debug: ${{ matrix.php == '8.5' && 'true' || 'false' }}
 
-      - name: Install build deps
+      - name: Install system deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y autoconf automake libtool make gcc g++ pkg-config
+          sudo apt-get install -y \
+            autoconf automake libtool make gcc g++ pkg-config \
+            libtesseract-dev libleptonica-dev tesseract-ocr-eng
 
-      - name: Install tesseract deps
+      - name: Set TESSDATA_PREFIX
         run: |
-          sudo apt-get install -y libtesseract-dev libleptonica-dev tesseract-ocr-eng
+          TESSDATA="$(dpkg -L tesseract-ocr-eng | grep -E '/tessdata$' | head -n 1 || true)"
+          if [ -z "$TESSDATA" ]; then
+            TESSDATA="/usr/share/tesseract-ocr/5/tessdata"
+          fi
+          echo "TESSDATA_PREFIX=$(dirname "$TESSDATA")" >> $GITHUB_ENV
+          echo "TESSDATA_PREFIX=$TESSDATA_PREFIX"
 
-      - name: Detect extension dir (tesseract-X.Y.Z or root)
+      - name: Detect extension dir
         id: extdir
         run: |
           if ls -d tesseract-* >/dev/null 2>&1; then
@@ -40,6 +50,7 @@ jobs:
             DIR="."
           fi
           echo "dir=$DIR" >> $GITHUB_OUTPUT
+          echo "Using dir=$DIR"
 
       - name: Build extension
         run: |
@@ -48,11 +59,47 @@ jobs:
           ./configure
           make -j"$(nproc)"
 
-      - name: Run tests (if PHPT exist)
+      - name: Run PHPT tests
         run: |
           cd "${{ steps.extdir.outputs.dir }}"
           if ls tests/*.phpt >/dev/null 2>&1; then
-            make test TESTS="tests" REPORT_EXIT_STATUS=1 NO_INTERACTION=1
+            make test TESTS="tests" REPORT_EXIT_STATUS=1 NO_INTERACTION=1 TEST_PHP_ARGS="-vv"
           else
             echo "No PHPT tests found"
           fi
+
+      - name: Install gdb (8.5 only)
+        if: failure() && matrix.php == '8.5'
+        run: sudo apt-get update && sudo apt-get install -y gdb
+
+      - name: GDB backtrace (8.5 only)
+        if: failure() && matrix.php == '8.5'
+        run: |
+          cd "${{ steps.extdir.outputs.dir }}"
+          cat > /tmp/repro.php <<'PHP'
+          <?php
+          $t = new Operativeit\Tesseract("eng");
+          $t->setImage(__DIR__ . "/tests/quick-brown-fox.png");
+          $s = $t->getUTF8Text();
+          $s = trim(preg_replace('/\s+/u', ' ', strtolower($s)));
+          echo preg_match('/the quick brown fox.*jumped over the lazy dog\.?/i', $s) ? "OK\n" : "FAIL\n";
+          PHP
+
+          gdb --batch \
+            -ex "set pagination off" \
+            -ex "run" \
+            -ex "bt full" \
+            --args php -d extension=modules/tesseract.so /tmp/repro.php
+
+      - name: Upload PHPT artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phpt-${{ matrix.php }}
+          path: |
+            ${{ steps.extdir.outputs.dir }}/tests/*.diff
+            ${{ steps.extdir.outputs.dir }}/tests/*.out
+            ${{ steps.extdir.outputs.dir }}/tests/*.exp
+            ${{ steps.extdir.outputs.dir }}/tests/*.log
+            ${{ steps.extdir.outputs.dir }}/tmp-php.ini
+            ${{ steps.extdir.outputs.dir }}/run-tests.php
