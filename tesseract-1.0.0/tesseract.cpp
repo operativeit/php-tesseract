@@ -151,6 +151,15 @@ static PHP_MINIT_FUNCTION(tesseract) {
     tesseract_methods
   );
 
+  Tesseract::handlers.free_obj = [](zend_object *obj) {
+    zend_object_std_dtor(obj);
+  };
+
+  // Override destructor to avoid segfault on shutdown
+  Tesseract::handlers.free_obj = [](zend_object *obj) {
+    zend_object_std_dtor(obj);
+  };
+
   zend_declare_class_constant_string(Tesseract::class_entry,
     "VERSION", strlen("VERSION"), Tesseract::Version());
 
