@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: ["master"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ["8.4", "8.5"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          tools: phpize
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake libtool make gcc g++ pkg-config
+
+      - name: Install tesseract deps
+        run: |
+          sudo apt-get install -y libtesseract-dev libleptonica-dev tesseract-ocr-eng
+
+      - name: Detect extension dir (tesseract-X.Y.Z or root)
+        id: extdir
+        run: |
+          if ls -d tesseract-* >/dev/null 2>&1; then
+            DIR="$(ls -d tesseract-* | sort -V | tail -n 1)"
+          else
+            DIR="."
+          fi
+          echo "dir=$DIR" >> $GITHUB_OUTPUT
+
+      - name: Build extension
+        run: |
+          cd "${{ steps.extdir.outputs.dir }}"
+          phpize
+          ./configure
+          make -j"$(nproc)"
+
+      - name: Run tests (if PHPT exist)
+        run: |
+          cd "${{ steps.extdir.outputs.dir }}"
+          if ls tests/*.phpt >/dev/null 2>&1; then
+            make test TESTS="tests" REPORT_EXIT_STATUS=1 NO_INTERACTION=1
+          else
+            echo "No PHPT tests found"
+          fi
