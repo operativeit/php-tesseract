@@ -97,11 +97,11 @@ jobs:
             echo "LEN=".strlen($s)."\n";
           '
 
-      - name: Run PHPT tests (opcache/jit off)
+      - name: Run tests with Tesseract
         run: |
           cd "${{ steps.extdir.outputs.dir }}"
           if ls tests/*.phpt >/dev/null 2>&1; then
-            make test TESTS="-m tests" REPORT_EXIT_STATUS=1 NO_INTERACTION=1 \
+            make test TESTS="tests" REPORT_EXIT_STATUS=1 NO_INTERACTION=1 \
               TEST_PHP_ARGS="-d opcache.enable=0 -d opcache.enable_cli=0 -d opcache.jit=0 -d opcache.protect_memory=0 -vv" || (
                 echo "=== TEST FAILED. SHOWING OUTPUTS ==="
                 for f in tests/*.out; do [ -e "$f" ] && echo ">>>> $f" && cat "$f"; done
