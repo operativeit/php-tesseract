@@ -98,7 +98,7 @@ struct Tesseract : tesseract::TessBaseAPI {
   Pix *m_image{nullptr};
 
   virtual ~Tesseract() {
-    End();
+
     if (m_image) {
       pixDestroy(&m_image);
     }
