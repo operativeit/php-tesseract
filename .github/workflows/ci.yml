@@ -22,8 +22,6 @@ jobs:
           php-version: ${{ matrix.php }}
           tools: phpize
           coverage: none
-        env:
-          debug: ${{ matrix.php == '8.5' && 'true' || 'false' }}
 
       - name: Install system deps
         run: |
@@ -32,13 +30,42 @@ jobs:
             autoconf automake libtool make gcc g++ pkg-config \
             libtesseract-dev libleptonica-dev tesseract-ocr-eng
 
-      - name: Set TESSDATA_PREFIX
+      - name: Set TESSDATA_PREFIX (point to tessdata/)
         run: |
-          TESSDATA="$(dpkg -L tesseract-ocr-eng | grep -E '/tessdata$' | head -n 1 || true)"
-          if [ -z "$TESSDATA" ]; then
-            TESSDATA="/usr/share/tesseract-ocr/5/tessdata"
+          set -euo pipefail
+          # Prefer: locate eng.traineddata installed by the package
+          ENG_FILE="$(dpkg -L tesseract-ocr-eng 2>/dev/null | grep -E '/tessdata/eng\.traineddata$' | head -n 1 || true)"
+          if [ -n "$ENG_FILE" ]; then
+            TESSDATA_DIR="$(dirname "$ENG_FILE")"
+          else
+            # Fallbacks
+            for d in \
+              /usr/share/tesseract-ocr/5/tessdata \
+              /usr/share/tesseract-ocr/4.00/tessdata \
+              /usr/share/tessdata; do
+              if [ -f "$d/eng.traineddata" ]; then
+                TESSDATA_DIR="$d"
+                break
+              fi
+            done
           fi
-          echo "TESSDATA_PREFIX=$(dirname "$TESSDATA")" >> $GITHUB_ENV
+
+          if [ -z "${TESSDATA_DIR:-}" ] || [ ! -f "$TESSDATA_DIR/eng.traineddata" ]; then
+            echo "Could not find eng.traineddata. Searching..."
+            FOUND="$(sudo find /usr/share -path '*tessdata/eng.traineddata' -print -quit 2>/dev/null || true)"
+            if [ -n "$FOUND" ]; then
+              TESSDATA_DIR="$(dirname "$FOUND")"
+            fi
+          fi
+
+          if [ -z "${TESSDATA_DIR:-}" ] || [ ! -f "$TESSDATA_DIR/eng.traineddata" ]; then
+            echo "ERROR: eng.traineddata not found"
+            exit 1
+          fi
+
+          echo "TESSDATA_PREFIX=$TESSDATA_DIR" >> $GITHUB_ENV
+          echo "Using TESSDATA_PREFIX=$TESSDATA_DIR"
+          ls -lah "$TESSDATA_DIR" | head -n 50
 
       - name: Detect extension dir
         id: extdir
@@ -49,6 +76,7 @@ jobs:
             DIR="."
           fi
           echo "dir=$DIR" >> $GITHUB_OUTPUT
+          echo "Using dir=$DIR"
 
       - name: Build extension
         run: |
@@ -60,13 +88,14 @@ jobs:
       - name: Sanity check (CLI)
         run: |
           cd "${{ steps.extdir.outputs.dir }}"
-          php -d extension=modules/tesseract.so -r '
-            $t=new Operativeit\Tesseract("eng");
-            $t->setImage(__DIR__."/tests/quick-brown-fox.png");
-            $s=$t->getUTF8Text();
-            echo "LEN=".strlen($s)."\n";
-            echo substr($s,0,120)."\n";
-          '
+          php -d opcache.enable=0 -d opcache.enable_cli=0 -d opcache.jit=0 -d opcache.protect_memory=0 \
+             -d extension=modules/tesseract.so -r '
+               $t=new Operativeit\Tesseract("eng");
+               $t->setImage(__DIR__."/tests/quick-brown-fox.png");
+               $s=$t->getUTF8Text();
+               echo "LEN=".strlen($s)."\n";
+               echo substr($s,0,120)."\n";
+             '
 
       - name: Run PHPT tests (opcache/jit off)
         run: |
@@ -99,7 +128,8 @@ jobs:
             -ex "set pagination off" \
             -ex "run" \
             -ex "bt full" \
-            --args php -d opcache.enable=0 -d opcache.enable_cli=0 -d opcache.jit=0 -d opcache.protect_memory=0 \
+            --args php \
+              -d opcache.enable=0 -d opcache.enable_cli=0 -d opcache.jit=0 -d opcache.protect_memory=0 \
               -d extension=modules/tesseract.so /tmp/repro.php
 
       - name: Upload PHPT artifacts on failure
