@@ -99,6 +99,7 @@ struct Tesseract : tesseract::TessBaseAPI {
 
   virtual ~Tesseract() {
     Clear();
+    End();
     if (m_image) {
       pixDestroy(&m_image);
     }
