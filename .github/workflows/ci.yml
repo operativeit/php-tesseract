@@ -88,14 +88,13 @@ jobs:
       - name: Sanity check (CLI)
         run: |
           cd "${{ steps.extdir.outputs.dir }}"
-          php -d opcache.enable=0 -d opcache.enable_cli=0 -d opcache.jit=0 -d opcache.protect_memory=0 \
-             -d extension=modules/tesseract.so -r '
-               $t=new Operativeit\Tesseract("eng");
-               $t->setImage(__DIR__."/tests/quick-brown-fox.png");
-               $s=$t->getUTF8Text();
-               echo "LEN=".strlen($s)."\n";
-               echo substr($s,0,120)."\n";
-             '
+          php -d extension=modules/tesseract.so -r '
+            $img = getcwd()."/tests/quick-brown-fox.png";
+            $t = new Operativeit\Tesseract("eng");
+            $t->setImage($img);
+            $s = $t->getUTF8Text();
+            echo "LEN=".strlen($s)."\n";
+          '
 
       - name: Run PHPT tests (opcache/jit off)
         run: |
@@ -114,33 +113,35 @@ jobs:
       - name: GDB backtrace (8.5 only)
         if: failure() && matrix.php == '8.5'
         run: |
+          set -euo pipefail
           cd "${{ steps.extdir.outputs.dir }}"
-          cat > /tmp/repro.php <<'PHP'
-          <?php
-          $t = new Operativeit\Tesseract("eng");
-          $t->setImage(__DIR__ . "/tests/quick-brown-fox.png");
-          $s = $t->getUTF8Text();
-          $s = trim(preg_replace('/\s+/u', ' ', strtolower($s)));
-          echo preg_match('/the quick brown fox.*jumped over the lazy dog\.?/i', $s) ? "OK\n" : "FAIL\n";
-          PHP
+
+          # El runner de PHPT genera este archivo al ejecutar el .phpt
+          if [ ! -f "tests/quick-brown-fox.php" ]; then
+            echo "tests/quick-brown-fox.php not found (PHPT did not generate it)"
+            ls -lah tests || true
+            exit 1
+          fi
 
           gdb --batch \
             -ex "set pagination off" \
             -ex "run" \
             -ex "bt full" \
-            --args php \
-              -d opcache.enable=0 -d opcache.enable_cli=0 -d opcache.jit=0 -d opcache.protect_memory=0 \
-              -d extension=modules/tesseract.so /tmp/repro.php
-
-      - name: Upload PHPT artifacts on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: phpt-${{ matrix.php }}
-          path: |
-            ${{ steps.extdir.outputs.dir }}/tests/*.diff
-            ${{ steps.extdir.outputs.dir }}/tests/*.out
-            ${{ steps.extdir.outputs.dir }}/tests/*.exp
-            ${{ steps.extdir.outputs.dir }}/tests/*.log
-            ${{ steps.extdir.outputs.dir }}/tmp-php.ini
-            ${{ steps.extdir.outputs.dir }}/run-tests.php
+            --args /usr/bin/php8.5 \
+              -n -c "$(pwd)/tmp-php.ini" \
+              -d "output_handler=" \
+              -d "open_basedir=" \
+              -d "disable_functions=" \
+              -d "output_buffering=Off" \
+              -d "display_errors=1" \
+              -d "display_startup_errors=1" \
+              -d "log_errors=0" \
+              -d "html_errors=0" \
+              -d "report_zend_debug=0" \
+              -d "extension_dir=$(pwd)/modules/" \
+              -d "extension=tesseract.so" \
+              -d "opcache.enable=0" \
+              -d "opcache.enable_cli=0" \
+              -d "opcache.jit=0" \
+              -d "opcache.protect_memory=0" \
+              -f "$(pwd)/tests/quick-brown-fox.php"
