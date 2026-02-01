@@ -100,9 +100,9 @@ struct Tesseract : tesseract::TessBaseAPI {
   virtual ~Tesseract() {
     Clear();
     End();
-    if (m_image) {
-      pixDestroy(&m_image);
-    }
+    // if (m_image) {
+    //   pixDestroy(&m_image);
+    // }
   }
 
   static zend_object_handlers handlers;
