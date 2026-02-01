@@ -106,6 +106,24 @@ jobs:
             echo "No PHPT tests found"
           fi
 
+      - name: Show PHPT Diff
+        if: failure()
+        run: |
+          cd "${{ steps.extdir.outputs.dir }}"
+          echo "=== FAILURE DETAILS ==="
+          for f in tests/*.diff; do
+            [ -e "$f" ] || continue
+            echo ">>>> $f"
+            cat "$f"
+            echo "<<<<"
+          done
+          for f in tests/*.log; do
+             [ -e "$f" ] || continue
+             echo ">>>> $f"
+             cat "$f"
+             echo "<<<<"
+          done
+
       - name: Install gdb (8.5 only)
         if: failure() && matrix.php == '8.5'
         run: sudo apt-get update && sudo apt-get install -y gdb
