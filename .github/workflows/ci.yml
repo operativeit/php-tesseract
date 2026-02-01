@@ -18,15 +18,15 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libtesseract-dev libleptonica-dev tesseract-ocr
+          sudo apt-get install -y libtesseract-dev libleptonica-dev tesseract-ocr-eng
 
       - name: Build Tesseract extension
         run: |
           cd tesseract-1.0.0
           phpize --clean || true
           make clean || true
-          phpize
-          ./configure --with-tesseract
+          phpize8.5
+          ./configure --with-php-config=/usr/bin/php-config8.5 --with-tesseract
           make -j"$(nproc)"
 
       - name: Run tests
