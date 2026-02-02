@@ -21,6 +21,9 @@ jobs:
     steps:
       - name: Install Git and Curl (Required for Checkout/Setup-PHP)
         run: |
+          set -eux
+          sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list
+          sed -i 's|http://security.debian.org|https://security.debian.org|g' /etc/apt/sources.list || true
           apt-get update
           apt-get install -y git curl zip unzip ca-certificates
 
