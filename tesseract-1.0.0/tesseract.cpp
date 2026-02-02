@@ -5,6 +5,7 @@
 #include "php.h"
 #include "p3.h"
 #include "zend_exceptions.h"
+#include "main/SAPI.h"
 
 #ifdef HAVE_CONFIG_H
 # pragma push_macro("HAVE_CONFIG_H")
@@ -116,19 +117,25 @@ struct Tesseract : tesseract::TessBaseAPI {
 
 	Pix *m_image{nullptr};
 
-	// Pragmatic Cleanup: CI environments segfault on full ~TessBaseAPI destruction.
-	// We explicitly clean resources we own, then call End(), but skip the full cleanup.
+	// Pragmatic Cleanup: 
+	// - CLI: Skip End() to avoid static destruction segfaults.
+	// - FPM/CGI: MUST call End() to prevent leaks.
 	void Shutdown() {
 		if (m_image) {
 			pixDestroy(&m_image);
 			m_image = nullptr;
 		}
-		// End(); // DISABLE: Tesseract's End() crashes in CI/Debian IO destruction. Leak it; OS will reclaim.
+
+		// Detect if we are in CLI mode
+		bool is_cli = (strcmp(sapi_module.name, "cli") == 0 || strcmp(sapi_module.name, "phpdbg") == 0);
+
+		if (!is_cli) {
+			End(); 
+		}
 	}
 
 	virtual ~Tesseract() {
-		// Default destructor. 
-		// Do NOT put cleanup here if we skip calling it in free_obj!
+		// Default destructor. Cleanup handled by Shutdown() via free_obj using p3.
 	}
 
 	static zend_object_handlers handlers;
@@ -184,9 +191,7 @@ static PHP_MINIT_FUNCTION(tesseract) {
 		tesseract_methods
 	);
 
-	// Override destructor to fix CI Segfaults (Hybrid: End() then leak)
-	// We MUST manually call our usage cleanup, but avoid the full C++ destructor
-	// because TessBaseAPI has static destruction order issues in CI runners.
+	// Override destructor logic for stability
 	Tesseract::handlers.free_obj = [](zend_object *obj) {
 		auto t = p3::toObject<Tesseract>(obj);
 		if (t) {

@@ -60,3 +60,12 @@ Makefile.objects
 .DS_Store
 *~
 
+
+# Test Artifacts
+php_test_results_*
+tesseract-1.0.0/php_test_results_*
+tests/*.diff
+tests/*.out
+tesseract-1.0.0/tests/*.diff
+tesseract-1.0.0/tests/*.out
+fpm_test.php
