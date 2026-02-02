@@ -19,8 +19,10 @@ jobs:
       - name: Install Git and Curl (Required for Checkout/Setup-PHP)
         run: |
           printf 'Acquire::ForceIPv4 "true";\n' > /etc/apt/apt.conf.d/99force-ipv4
+          sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list
+    sed -i 's|http://security.debian.org|https://security.debian.org|g' /etc/apt/sources.list || true
           apt-get update
-          apt-get install -y git curl zip unzip
+          apt-get install -y --no-install-recommends git curl zip unzip ca-certificates
 
       - uses: actions/checkout@v4
 
