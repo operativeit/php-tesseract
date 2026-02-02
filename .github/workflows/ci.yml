@@ -8,7 +8,7 @@ concurrency:
 
 jobs:
   build-and-test:
-    runs-on: [ self-hosted, Linux, runner-ovh-vps ]
+    runs-on: [ self-hosted, runner-ovh-vps ]
     container: debian:bullseye
     strategy:
       fail-fast: false
