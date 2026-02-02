@@ -10,7 +10,7 @@ jobs:
   build-and-test:
     runs-on: [ self-hosted, runner-ovh-vps ]
     container:
-      image: debian:bookworm-runner
+      image: bookworm-runner:local
       options: --pull=never
     strategy:
       fail-fast: false
