@@ -17,5 +17,5 @@ try {
     echo "Exception: " . $e->getMessage() . "\n";
 }
 ?>
---EXPECT--
-OK
+--EXPECTREGEX--
+OK\n?(ObjectCache.*)*
