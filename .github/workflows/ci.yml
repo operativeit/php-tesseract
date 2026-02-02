@@ -1,4 +1,4 @@
-name: Build and Test (PHP 8.5)
+name: Build and Test (Matrix 8.4/8.5)
 
 on: [push, pull_request]
 
@@ -9,28 +9,38 @@ concurrency:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    container: ubuntu:24.04 # Force Docker environment (matches 'act')
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        php: ['8.4', '8.5']
     steps:
+      - name: Install Git and Curl (Required for Checkout/Setup-PHP)
+        run: |
+          apt-get update
+          apt-get install -y git curl zip unzip
+
       - uses: actions/checkout@v4
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.5'
+          php-version: ${{ matrix.php }}
           extensions: none
           coverage: none
 
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libtesseract-dev libleptonica-dev tesseract-ocr-eng
+          apt-get install -y libtesseract-dev libleptonica-dev tesseract-ocr
 
       - name: Build Tesseract extension
         run: |
           cd tesseract-1.0.0
           phpize --clean || true
           make clean || true
-          phpize8.5
-          ./configure --with-php-config=/usr/bin/php-config8.5 --with-tesseract
+          phpize
+          ./configure --with-tesseract
           make -j"$(nproc)"
 
       - name: Run tests
@@ -45,5 +55,5 @@ jobs:
                 exit 1
               )
           else
-            echo "No PHPT tests found."
+            echo "No PHPT tests found"
           fi
