@@ -16,6 +16,21 @@ jobs:
       matrix:
         php: ['8.4', '8.5']
     steps:
+      - name: Network debug (container)
+        run: |
+          set -x
+          whoami || true
+          cat /etc/resolv.conf || true
+          ip a || true
+          ip r || true
+          getent hosts deb.debian.org || true
+
+          # Test HTTPS (443)
+          apt-get update -o Acquire::ForceIPv4=true -o Acquire::https::Timeout=10 -o Acquire::Retries=0 || true
+          # Test raw HTTP/HTTPS (si tienes curl no, usa wget; en debian base suele no haberlos)
+          # Probamos conectividad con /dev/tcp (bash). Si no hay bash, lo verás y ajustamos.
+          (command -v bash && bash -lc 'timeout 10 bash -lc "cat < /dev/null > /dev/tcp/deb.debian.org/443" && echo "TCP 443 OK" || echo "TCP 443 FAIL"') || true
+          (command -v bash && bash -lc 'timeout 10 bash -lc "cat < /dev/null > /dev/tcp/deb.debian.org/80" && echo "TCP 80 OK" || echo "TCP 80 FAIL"') || true
       - name: Install Git and Curl (Required for Checkout/Setup-PHP)
         run: |
           apt-get update
