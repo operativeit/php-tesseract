@@ -116,13 +116,19 @@ struct Tesseract : tesseract::TessBaseAPI {
 
 	Pix *m_image{nullptr};
 
-	virtual ~Tesseract() {
+	// Pragmatic Cleanup: CI environments segfault on full ~TessBaseAPI destruction.
+	// We explicitly clean resources we own, then call End(), but skip the full cleanup.
+	void Shutdown() {
 		if (m_image) {
 			pixDestroy(&m_image);
 			m_image = nullptr;
 		}
-		Clear();
-		// Base class ~TessBaseAPI() will call End() automatically
+		End(); // TessBaseAPI::End()
+	}
+
+	virtual ~Tesseract() {
+		// Default destructor. 
+		// Do NOT put cleanup here if we skip calling it in free_obj!
 	}
 
 	static zend_object_handlers handlers;
@@ -178,14 +184,13 @@ static PHP_MINIT_FUNCTION(tesseract) {
 		tesseract_methods
 	);
 
-	// Override destructor to fix CI Segfaults
-	// We MUST manually call the C++ destructor because we are replacing p3's default handler
-	// and the object is embedded in Zend memory (not allocated via new).
+	// Override destructor to fix CI Segfaults (Hybrid: End() then leak)
+	// We MUST manually call our usage cleanup, but avoid the full C++ destructor
+	// because TessBaseAPI has static destruction order issues in CI runners.
 	Tesseract::handlers.free_obj = [](zend_object *obj) {
 		auto t = p3::toObject<Tesseract>(obj);
 		if (t) {
-			// Call C++ destructor explicitly to clean up std::string/vectors in base class
-			t->~Tesseract(); 
+			t->Shutdown();
 		}
 		zend_object_std_dtor(obj); 
 	};
