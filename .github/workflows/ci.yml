@@ -8,7 +8,7 @@ concurrency:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container: debian:bullseye # Debian 11
     strategy:
       fail-fast: false
@@ -44,6 +44,9 @@ jobs:
           make -j"$(nproc)"
 
       - name: Run tests
+        env:
+          USE_ZEND_ALLOC: 0
+          OMP_THREAD_LIMIT: 1
         run: |
           cd tesseract-1.0.0
           if ls tests/*.phpt >/dev/null 2>&1; then

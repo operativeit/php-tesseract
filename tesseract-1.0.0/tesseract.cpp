@@ -123,7 +123,7 @@ struct Tesseract : tesseract::TessBaseAPI {
 			pixDestroy(&m_image);
 			m_image = nullptr;
 		}
-		End(); // TessBaseAPI::End()
+		// End(); // DISABLE: Tesseract's End() crashes in CI/Debian IO destruction. Leak it; OS will reclaim.
 	}
 
 	virtual ~Tesseract() {
