@@ -1,0 +1,50 @@
+name: Build and Publish Debian Packages
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-debian:
+    runs-on: [ self-hosted, opit-runner ]
+    container:
+      image: operativeit/bookworm-phpext-ci:latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Packaging Dependencies
+        run: |
+          apt-get update
+          apt-get install -y debhelper dh-php devscripts fakeroot
+          # Install dependencies listed in control file
+          apt-get install -y libtesseract-dev libleptonica-dev tesseract-ocr pkg-config libxml2-utils
+          # Ensure php-all-dev is present. 
+          # Note: In specialized PHPExt-CI containers, this might be pre-installed or custom managed.
+          apt-get install -y php-all-dev || true
+
+      - name: Build Debian Package
+        run: |
+           # Clean previous builds
+           fakeroot debian/rules clean
+           
+           # Build package (binary only, unsigned source/changes) -us -uc
+           dpkg-buildpackage -us -uc -b
+           
+           # Prepare artifacts
+           mkdir -p dist
+           mv ../*.deb dist/
+           mv ../*.buildinfo dist/ || true
+           mv ../*.changes dist/ || true
+
+      - name: Upload Artifacts to Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Wait a moment to ensure release exists if triggered simultaneously (though usually fast)
+          # Use the tag name from ref
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          
+          # Upload assets
+          gh release upload "$TAG_NAME" dist/*.deb --clobber

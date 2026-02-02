@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "major | minor | patch | X.Y.Z"
+        required: true
+        default: "patch"
+
+permissions:
+  contents: write
+
+jobs:
+  preflight-build:
+    runs-on: [ self-hosted, opit-runner ]
+    container:
+      image: operativeit/bookworm-phpext-ci:latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ["8.4", "8.5"]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Detect extension dir
+        id: extdir
+        run: |
+          if ls -d tesseract-* >/dev/null 2>&1; then
+            DIR="$(ls -d tesseract-* | sort -V | tail -n 1)"
+          else
+            DIR="."
+          fi
+          echo "dir=$DIR" >> $GITHUB_OUTPUT
+
+      - name: Build
+        run: |
+          cd "${{ steps.extdir.outputs.dir }}"
+          phpize --clean || true
+          phpize
+          ./configure --with-tesseract
+          make -j"$(nproc)"
+
+  release:
+    needs: preflight-build
+    runs-on: [ self-hosted, opit-runner ]
+    container:
+      image: operativeit/bookworm-phpext-ci:latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git fetch --tags --force
+
+      - name: Bump version
+        run: |
+          chmod +x scripts/bump_version.sh
+          scripts/bump_version.sh "${{ github.event.inputs.bump }}"
+
+      - name: Read new version
+        id: v
+        run: |
+          VER="$(cat .version)"
+          echo "ver=$VER" >> $GITHUB_OUTPUT
+          echo "tag=v$VER" >> $GITHUB_OUTPUT
+
+      - name: Commit bump
+        run: |
+          git add package.xml README.md .version || true
+          git add tesseract-* || true
+          git commit -m "chore(release): v${{ steps.v.outputs.ver }}"
+
+      - name: Tag & push
+        run: |
+          git tag "${{ steps.v.outputs.tag }}"
+          git push origin master
+          git push origin "${{ steps.v.outputs.tag }}"
+
+      - name: Create GitHub Release (auto notes)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.v.outputs.tag }}" \
+            --title "${{ steps.v.outputs.tag }}" \
+            --generate-notes

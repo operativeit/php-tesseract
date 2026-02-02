@@ -1,0 +1,46 @@
+name: Build and Test (Matrix 8.x)
+
+on: [push, pull_request]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build-and-test:
+    runs-on: [ self-hosted, opit-runner ]
+    container:
+      image: operativeit/bookworm-phpext-ci:latest
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        php: [ '8.5']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Tesseract extension
+        run: |
+          cd tesseract-1.0.0
+          phpize --clean || true
+          make clean || true
+          phpize
+          ./configure --with-tesseract
+          make -j"$(nproc)"
+
+      - name: Run tests
+        env:
+          USE_ZEND_ALLOC: 0
+          OMP_THREAD_LIMIT: 1
+        run: |
+          cd tesseract-1.0.0
+          if ls tests/*.phpt >/dev/null 2>&1; then
+            TEST_PHP_EXECUTABLE=$(which php) make test TESTS="tests" REPORT_EXIT_STATUS=1 NO_INTERACTION=1 \
+              TEST_PHP_ARGS="-d opcache.enable=0 -d opcache.enable_cli=0 -d opcache.jit=0 -d opcache.protect_memory=0 -vv" || (
+                echo "=== TEST FAILED. SHOWING OUTPUTS ==="
+                for f in tests/*.out; do [ -e "$f" ] && echo ">>>> $f" && cat "$f"; done
+                for f in tests/*.diff; do [ -e "$f" ] && echo ">>>> $f" && cat "$f"; done
+                exit 1
+              )
+          else
+            echo "No PHPT tests found"
+          fi
