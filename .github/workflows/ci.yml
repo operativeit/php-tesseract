@@ -10,7 +10,7 @@ jobs:
   build-and-test:
     runs-on: [ self-hosted, runner-ovh-vps ]
     container:
-      image: bookworm-runner:local
+      image: operativeit/bookworm-phpext-ci:latest
       options: --pull=never
     strategy:
       fail-fast: false
