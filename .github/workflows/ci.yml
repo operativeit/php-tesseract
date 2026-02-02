@@ -11,6 +11,7 @@ jobs:
     runs-on: [ self-hosted, runner-ovh-vps ]
     container:
       image: debian:bookworm-runner
+      options: --pull=never
     strategy:
       fail-fast: false
       matrix:
